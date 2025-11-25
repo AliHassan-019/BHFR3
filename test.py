@@ -1,43 +1,56 @@
 import serial
 import time
 
-# Open the main UART (/dev/serial0) at 115200 baud
-ser = serial.Serial(
-    port="/dev/serial0",
-    baudrate=115200,
-    bytesize=serial.EIGHTBITS,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE,
-    timeout=0.1,       # read timeout in seconds
-)
+PORT = "/dev/ttyAMA0"   # Raspberry Pi 5 UART
+BAUD = 115200
 
-print("[PI] UART opened on /dev/serial0")
+print("[INFO] Opening UART port", PORT)
+
+try:
+    uart = serial.Serial(
+        PORT,
+        BAUD,
+        timeout=1,
+        write_timeout=1
+    )
+except Exception as e:
+    print("[ERROR] Could not open UART:", e)
+    exit()
+
+print("[INFO] UART opened successfully.")
+print("[INFO] Starting loopback test...")
+print("--------------------------------------------------")
 
 counter = 0
 
-try:
-    while True:
-        # ---- SEND DUMMY DATA TO ESP32 ----
-        msg = f"Hello from Pi #{counter}\n"
-        ser.write(msg.encode("utf-8"))
-        ser.flush()
-        print(f"[PI] Sent: {msg.strip()}")
+while True:
+    try:
+        # Prepare test message
+        message = f"Test-{counter}\n"
+        
+        # Send data
+        uart.write(message.encode('utf-8'))
+        print(f"[TX] Sent: {message.strip()}")
 
-        # ---- TRY TO READ ANY RESPONSE FROM ESP32 ----
-        incoming = ser.readline()  # reads up to newline or timeout
-        if incoming:
-            try:
-                text = incoming.decode("utf-8", errors="ignore").strip()
-            except UnicodeDecodeError:
-                text = str(incoming)
-            print(f"[PI] Received from ESP32: {text}")
+        time.sleep(0.05)
+
+        # Read response
+        received = uart.readline().decode("utf-8", errors="ignore").strip()
+
+        if received:
+            print(f"[RX] Received: {received}")
+        else:
+            print("[RX] No data")
+
+        print("--------------------------------------------------")
 
         counter += 1
-        time.sleep(1.0)  # send every 1 second
+        time.sleep(0.5)
 
-except KeyboardInterrupt:
-    print("\n[PI] Stopping UART test.")
+    except KeyboardInterrupt:
+        print("\n[INFO] Exiting.")
+        break
 
-finally:
-    ser.close()
-    print("[PI] UART closed.")
+    except Exception as e:
+        print("[ERROR] Runtime exception:", e)
+        time.sleep(1)
